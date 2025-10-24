@@ -32,10 +32,10 @@ def create(ip_address, student_id):
                         auth=basicauth, headers=headers, verify=False)
 
     if resp.status_code == 201:
-        return f"Interface Loopback{student_id} is created successfully using Restconf"
+        return f"Interface loopback {student_id} is created successfully using Restconf"
     elif resp.status_code == 204:
         return f"Cannot create: Interface loopback {student_id}"
-    return f"Error: create Interface Loopback {student_id} already exists"
+    return f"Error: create Interface loopback  {student_id} already exists"
 
 def delete(ip_address, student_id):
     api_url = f"https://{ip_address}/restconf/data/ietf-interfaces:interfaces/interface=Loopback{student_id}"
@@ -88,5 +88,5 @@ def status(ip_address, student_id):
             return f"Interface loopback {student_id} is enabled (checked by Restconf)"
         return f"Interface loopback {student_id} is disabled (checked by Restconf)"
     elif resp.status_code == 404:
-        return f"No Interface loopback {student_id}"
+        return f"No Interface loopback {student_id} (checked by Restconf)"
     return f"Error getting status: {resp.status_code}"

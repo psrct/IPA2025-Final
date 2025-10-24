@@ -58,6 +58,8 @@ def get_motd(ip_address):
         print(m_inline)
         if m_inline:
             motd_text = m_inline.group(2).strip().lstrip('C^ ')
-            return motd_text
+            if motd_text:
+                return motd_text
+            return "Error: No MOTD Configured"
 
         return "Error: No MOTD Configured"

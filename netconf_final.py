@@ -14,11 +14,12 @@ def connect_netconf(ip_address):
     try:
         m = manager.connect(
             host=ip_address,
-            port=830, # Default NETCONF port
+            port=830,
             username="admin",
             password="cisco",
             hostkey_verify=False,
-            device_params={'name': 'csr'} # ระบุ device_params
+            device_params={'name': 'csr'},
+            timeout=30
         )
         return m
     except Exception as e:
@@ -54,6 +55,7 @@ def create(ip_address, student_id):
         netconf_reply = m.edit_config(target="running", config=netconf_config)
         xml_data = netconf_reply.xml
         print(xml_data)
+        
         if '<ok/>' in xml_data:
             return f"Interface Loopback{student_id} is created successfully using Netconf"
         return "Error: NETCONF create failed"
@@ -84,7 +86,7 @@ def delete(ip_address, student_id):
     try:
         # ตรวจสอบก่อนว่า interface มีอยู่จริงหรือไม่
         if "No Interface" in status(ip_address, student_id):
-             return f"Cannot delete: Interface loopback {student_id} not found"
+            return f"Cannot delete: Interface loopback {student_id}"
 
         netconf_reply = m.edit_config(target="running", config=netconf_config)
         xml_data = netconf_reply.xml
@@ -94,7 +96,7 @@ def delete(ip_address, student_id):
         return "Error: NETCONF delete failed"
     except Exception as e:
         print(f"NETCONF Error: {e}")
-        return f"Error: NETCONF delete failed: {e}"
+        return f"Cannot delete: Interface loopback {student_id}"
     finally:
         if m: m.close_session()
 
@@ -117,7 +119,7 @@ def enable(ip_address, student_id):
 
     try:
         if "No Interface" in status(ip_address, student_id):
-             return f"Cannot enable: Interface loopback {student_id} (checked by Netconf)"
+            return f"Cannot enable: Interface loopback {student_id}"
 
         netconf_reply = m.edit_config(target="running", config=netconf_config, default_operation="merge")
         xml_data = netconf_reply.xml
@@ -127,7 +129,7 @@ def enable(ip_address, student_id):
         return "Error: NETCONF enable failed"
     except Exception as e:
         print(f"NETCONF Error: {e}")
-        return f"Error: NETCONF enable failed: {e}"
+        return f"Cannot enable: Interface loopback {student_id}"
     finally:
         if m: m.close_session()
 
@@ -150,7 +152,7 @@ def disable(ip_address, student_id):
 
     try:
         if "No Interface" in status(ip_address, student_id):
-             return f"Cannot shutdown: Interface loopback {student_id} (checked by Netconf)"
+             return f"Cannot shutdown: Interface loopback {student_id}"
              
         netconf_reply = m.edit_config(target="running", config=netconf_config, default_operation="merge")
         xml_data = netconf_reply.xml
@@ -160,7 +162,7 @@ def disable(ip_address, student_id):
         return "Error: NETCONF disable failed"
     except Exception as e:
         print(f"NETCONF Error: {e}")
-        return f"Error: NETCONF disable failed: {e}"
+        return f"Cannot shutdown: Interface loopback {student_id}"
     finally:
         if m: m.close_session()
 
@@ -204,6 +206,6 @@ def status(ip_address, student_id):
             
     except Exception as e:
        print(f"NETCONF Error: {e}")
-       return f"Error getting status: {e}"
+       return f"No Interface loopback {student_id}"
     finally:
         if m: m.close_session()

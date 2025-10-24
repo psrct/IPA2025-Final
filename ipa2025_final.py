@@ -60,6 +60,9 @@ while True:
         if message.startswith(f"/{STUDENT_ID} "):
             parts = message.strip().split(" ")
             command_parts = parts[1:]
+
+            if len(command_parts) == 0 or command_parts[0].lower() not in ["restconf", "netconf"]:
+                selected_ip = None
             
             # ตรวจสอบคำสั่งแบบ 1 ส่วน (restconf, netconf, หรือ command ที่ใช้ IP/method ที่เก็บไว้)
             if len(command_parts) == 1:
@@ -89,7 +92,9 @@ while True:
                     selected_ip = part1 # เก็บ IP
                     command = part2
                     args = " ".join(command_parts[2:])
-                elif part1 == "motd": # กรณี /... motd [message] โดยใช้ IP ที่เก็บไว้
+                elif part1 not in VALID_IPS :
+                    responseMessage = "Error: No MOTD Configured"
+                elif part1 == "motd":
                     if not selected_ip:
                          responseMessage = "Error: No IP specified"
                     else:
@@ -107,6 +112,8 @@ while True:
                     if command in ["create", "delete", "enable", "disable", "status"]:
                         if not selected_method:
                             responseMessage = "Error: No method specified"
+                        elif not selected_ip:
+                            responseMessage = "Error: No IP specified"
                         elif selected_method == "restconf":
                             if command == "create":
                                 responseMessage = restconf_final.create(selected_ip, STUDENT_ID)
