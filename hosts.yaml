@@ -1,5 +1,9 @@
 [router]
-CSR1kv ansible_host=10.0.15.62
+10.0.15.61 ansible_host=10.0.15.61
+10.0.15.62 ansible_host=10.0.15.62
+10.0.15.63 ansible_host=10.0.15.63
+10.0.15.64 ansible_host=10.0.15.64
+10.0.15.65 ansible_host=10.0.15.65
 
 [router:vars]
 ansible_user=admin

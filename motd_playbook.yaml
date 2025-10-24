@@ -1,0 +1,17 @@
+---
+- name: Configure MOTD banner on Cisco Router
+  hosts: all
+  gather_facts: false
+  connection: network_cli
+
+  tasks:
+    - name: Configure MOTD Banner
+      cisco.ios.ios_banner:
+        banner: motd
+        text: "{{ motd_message }}"
+        state: present
+      register: motd_result
+
+    - name: Print MOTD result
+      debug:
+        msg: "MOTD for {{ inventory_hostname }} configured successfully by {{ STUDENT_ID }}"
