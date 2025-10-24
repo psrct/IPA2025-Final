@@ -5,12 +5,15 @@ certifi==2025.10.5
 cffi==2.0.0
 charset-normalizer==3.4.4
 cryptography==46.0.3
+dotenv==0.9.9
 idna==3.11
 invoke==2.2.1
 Jinja2==3.1.6
+lxml==6.0.2
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
+ncclient==0.7.0
 netmiko==4.6.0
 ntc_templates==8.1.0
 packaging==25.0
@@ -30,3 +33,4 @@ ruamel.yaml.clib==0.2.14
 scp==0.15.0
 textfsm==2.1.0
 urllib3==2.5.0
+xmltodict==1.0.2

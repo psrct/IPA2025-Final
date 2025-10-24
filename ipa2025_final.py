@@ -4,111 +4,184 @@
 # Your GitHub Repo: https://github.com/psrct/IPA2024-Final
 
 #######################################################################################
-# 1. Import libraries for API requests, JSON formatting, time, os, (restconf_final or netconf_final), netmiko_final, and ansible_final.
-
+# 1. Import libraries
 import os, time, requests, json
 from dotenv import load_dotenv
 from requests_toolbelt.multipart.encoder import MultipartEncoder
+import re # Import regex
 
 import ansible_final
 import netmiko_final
 import restconf_final
+import netconf_final
 
 load_dotenv()
 #######################################################################################
-# 2. Assign the Webex access token to the variable ACCESS_TOKEN using environment variables.
-
+# 2. Assign environment variables
 WEBEX_TOKEN = os.environ.get("WEBEX_TOKEN")
-
-#######################################################################################
-# 3. Prepare parameters get the latest message for messages API.
-
-# Defines a variable that will hold the roomId
 WEBEX_ROOM_ID = os.environ.get("WEBEX_ROOM_ID")
 STUDENT_ID = os.environ.get("STUDENT_ID")
+
+#######################################################################################
+# 3. Global variables for state
+VALID_IPS = ["10.0.15.61", "10.0.15.62", "10.0.15.63", "10.0.15.64", "10.0.15.65"]
+selected_ip = None
+selected_method = None # "restconf" or "netconf"
 
 print("Starting Webex Teams bot...")
 while True:
     time.sleep(1)
 
-    # the Webex Teams GET parameters
-    #  "roomId" is the ID of the selected room
-    #  "max": 1  limits to get only the very last message in the room
+    # 4. Prepare parameters to get the latest message
     getParameters = {"roomId": WEBEX_ROOM_ID, "max": 1}
-
-    # the Webex Teams HTTP header, including the Authoriztion
     getHTTPHeader = {"Authorization": f"Bearer {WEBEX_TOKEN}"}
 
-# 4. Provide the URL to the Webex Teams messages API, and extract location from the received message.
     try:
         r = requests.get("https://webexapis.com/v1/messages", params=getParameters, headers=getHTTPHeader)
-        
-        # verify if the retuned HTTP status code is 200/OK
         if not r.status_code == 200:
-            raise Exception(
-                "Incorrect reply from Webex Teams API. Status code: {}".format(r.status_code)
-            )
+            raise Exception(f"Incorrect reply from Webex Teams API. Status code: {r.status_code}")
 
-        # get the JSON formatted returned data
         json_data = r.json()
-
-        # check if there are any messages in the "items" array
         if len(json_data["items"]) == 0:
             raise Exception("There are no messages in the room.")
 
-        # store the array of messages
         messages = json_data["items"]
+        message_id = messages[0]["id"]
         
-        # store the text of the first message in the array
         message = messages[0]["text"]
-        print("Received message: " + message)
+        print(f"Received message: {message}")
 
-        # check if the text of the message starts with the magic character "/" followed by your studentID and a space and followed by a command name
-        #  e.g.  "/66070123 create"
+        # 5. Parse command
+        responseMessage = ""
+        postData = None
+        filename = None
+        command = None
+        
         if message.startswith(f"/{STUDENT_ID} "):
-            # extract the command
-            command = message.split(" ")[1]
-            print(f"Extracted command: {command}")
+            parts = message.strip().split(" ")
+            command_parts = parts[1:]
+            
+            # ตรวจสอบคำสั่งแบบ 1 ส่วน (restconf, netconf, หรือ command ที่ใช้ IP/method ที่เก็บไว้)
+            if len(command_parts) == 1:
+                cmd_part_1 = command_parts[0].lower()
+                if cmd_part_1 == "restconf":
+                    selected_method = "restconf"
+                    responseMessage = "Ok: Restconf"
+                elif cmd_part_1 == "netconf":
+                    selected_method = "netconf"
+                    responseMessage = "Ok: Netconf"
+                elif cmd_part_1 in ["create", "delete", "enable", "disable", "status", "gigabit_status", "showrun", "motd"]:
+                    if not selected_method:
+                        responseMessage = "Error: No method specified"
+                    elif not selected_ip:
+                        responseMessage = "Error: No IP specified" 
+                    else:
+                        command = cmd_part_1 # ใช้ IP/method ที่เก็บไว้
+                else:
+                    responseMessage = "Error: No command found."
 
-# 5. Complete the logic for each command
-            responseMessage = ""
-            if command == "create":
-                responseMessage = restconf_final.create()
-            elif command == "delete":
-                responseMessage = restconf_final.delete()
-            elif command == "enable":
-                responseMessage = restconf_final.enable()
-            elif command == "disable":
-                responseMessage = restconf_final.disable()
-            elif command == "status":
-                responseMessage = restconf_final.status()
-            elif command == "gigabit_status":
-                responseMessage = netmiko_final.gigabit_status()
-            elif command == "showrun":
-                responseMessage = ansible_final.showrun()
-            else:
-                responseMessage = "Error: No command or unknown command"
+            # ตรวจสอบคำสั่งแบบ 2 ส่วน (IP + command, หรือ command + args)
+            elif len(command_parts) >= 2:
+                part1 = command_parts[0].lower()
+                part2 = command_parts[1].lower()
+                
+                if part1 in VALID_IPS:
+                    selected_ip = part1 # เก็บ IP
+                    command = part2
+                    args = " ".join(command_parts[2:])
+                elif part1 == "motd": # กรณี /... motd [message] โดยใช้ IP ที่เก็บไว้
+                    if not selected_ip:
+                         responseMessage = "Error: No IP specified"
+                    else:
+                        command = "motd"
+                        args = " ".join(command_parts[1:])
+                else:
+                    responseMessage = "Error: No command found."
+            
+            # 6. Execute command
+            if command:
+                if not selected_ip:
+                    responseMessage = "Error: No IP specified"
+                else:
+                    # Part 1 commands
+                    if command in ["create", "delete", "enable", "disable", "status"]:
+                        if not selected_method:
+                            responseMessage = "Error: No method specified"
+                        elif selected_method == "restconf":
+                            if command == "create":
+                                responseMessage = restconf_final.create(selected_ip, STUDENT_ID)
+                            elif command == "delete":
+                                responseMessage = restconf_final.delete(selected_ip, STUDENT_ID)
+                            elif command == "enable":
+                                responseMessage = restconf_final.enable(selected_ip, STUDENT_ID)
+                            elif command == "disable":
+                                responseMessage = restconf_final.disable(selected_ip, STUDENT_ID)
+                            elif command == "status":
+                                responseMessage = restconf_final.status(selected_ip, STUDENT_ID)
+                        
+                        elif selected_method == "netconf":
+                            if command == "create":
+                                responseMessage = netconf_final.create(selected_ip, STUDENT_ID)
+                            elif command == "delete":
+                                responseMessage = netconf_final.delete(selected_ip, STUDENT_ID)
+                            elif command == "enable":
+                                responseMessage = netconf_final.enable(selected_ip, STUDENT_ID)
+                            elif command == "disable":
+                                responseMessage = netconf_final.disable(selected_ip, STUDENT_ID)
+                            elif command == "status":
+                                responseMessage = netconf_final.status(selected_ip, STUDENT_ID)
+
+                    # Part 2 commands
+                    elif command == "motd":
+                        if args: # Set MOTD
+                            responseMessage = ansible_final.set_motd(selected_ip, args, STUDENT_ID)
+                        else: # Get MOTD
+                            motd_text = netmiko_final.get_motd(selected_ip)
+                            responseMessage = motd_text
+                    
+                    # Original commands
+                    elif command == "gigabit_status":
+                        responseMessage = netmiko_final.gigabit_status(selected_ip)
+                    
+                    elif command == "showrun":
+                        responseMessage = ansible_final.showrun(selected_ip, STUDENT_ID)
+                        if responseMessage == "ok":
+                            # อัปเดตชื่อไฟล์ให้มี IP
+                            filename = f"show_run_{STUDENT_ID}_{selected_ip}.txt" 
+                            responseMessage = f"File: {filename}"
+                        else:
+                            responseMessage = "Error: Ansible showrun failed"
+
+                    elif responseMessage == "": # ถ้ายังไม่มี response
+                        responseMessage = "Error: No command found"
+            
             print(f"Response message: {responseMessage}")
         
-# 6. Complete the code to post the message to the Webex Teams room.
+# 7. Post the message to the Webex Teams room.
+            if responseMessage:
+                postHTTPHeaders = {"Authorization": f"Bearer {WEBEX_TOKEN}"}
+                
+                if command == "showrun" and filename:
+                    try:
+                        m = MultipartEncoder(
+                            fields={"roomId": WEBEX_ROOM_ID, "text": responseMessage,
+                                    "files": (filename, open(filename, 'rb'), 'text/plain')}
+                        )
+                        postData = m
+                        postHTTPHeaders["Content-Type"] = m.content_type
+                    except FileNotFoundError:
+                        responseMessage = "Error: Could not find generated showrun file."
+                        postData = json.dumps({"roomId": WEBEX_ROOM_ID, "text": responseMessage})
+                        postHTTPHeaders["Content-Type"] = "application/json"
+                
+                if not postData:
+                    postData = json.dumps({"roomId": WEBEX_ROOM_ID, "text": responseMessage})
+                    postHTTPHeaders["Content-Type"] = "application/json"
 
-            postHTTPHeaders = {"Authorization": f"Bearer {WEBEX_TOKEN}"}
-            
-            if command == "showrun" and responseMessage == 'ok':
-                filename = f"show_run_{STUDENT_ID}_CSR1kv.txt"
-                m = MultipartEncoder(
-                    fields={"roomId": WEBEX_ROOM_ID, "text": f"show_run_{STUDENT_ID}_CSR1kv.txt",
-                            "files": (filename, open(filename, 'rb'), 'text/plain')}
-                )
-                postData = m
-                postHTTPHeaders["Content-Type"] = m.content_type
-            else:
-                postData = json.dumps({"roomId": WEBEX_ROOM_ID, "text": responseMessage})
-                postHTTPHeaders["Content-Type"] = "application/json"
-
-            r = requests.post("https://webexapis.com/v1/messages", data=postData, headers=postHTTPHeaders)
-            if not r.status_code == 200:
-                print(f"Error posting message: {r.status_code} {r.text}")
+                r = requests.post("https://webexapis.com/v1/messages", data=postData, headers=postHTTPHeaders)
+                if not r.status_code == 200:
+                    print(f"Error posting message: {r.status_code} {r.text}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        time.sleep(2)
