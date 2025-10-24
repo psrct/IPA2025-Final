@@ -1,0 +1,18 @@
+---
+- name: Show running configuration
+  hosts: router
+  gather_facts: false
+  connection: network_cli
+
+  tasks:
+    - name: Show running-config
+      cisco.ios.ios_command:
+        commands:
+          - show running-config
+      register: showrun
+
+    - name: Save showrun to file
+      copy:
+        content: "{{ showrun.stdout[0] }}"
+        dest: "./show_run_{{ STUDENT_ID }}_{{ inventory_hostname }}.txt"
+      delegate_to: localhost
